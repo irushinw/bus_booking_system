@@ -17,7 +17,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "./client";
-import type { Alert, Booking, Bus, Route, UserProfile, UserRole } from "@/types/firestore";
+import type { Alert, Booking, Bus, Route, UserProfile, UserRole, PaymentRecord, OwnerEarning } from "@/types/firestore";
 
 export async function fetchRoutes() {
   const snapshot = await getDocs(collection(db, "routes"));
@@ -215,6 +215,43 @@ export async function createBooking({
   return bookingRef.id;
 }
 
+export async function recordPayment(payload: {
+  bookingId: string;
+  userId: string;
+  busId: string;
+  routeId?: string;
+  amount: number;
+  currency?: "LKR";
+  method: "card" | "wallet" | "cash";
+  status: "succeeded" | "failed";
+  last4?: string;
+}) {
+  const docRef = await addDoc(collection(db, "payments"), {
+    ...payload,
+    currency: payload.currency ?? "LKR",
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function recordOwnerEarning(payload: {
+  ownerId: string;
+  busId: string;
+  bookingId: string;
+  route?: string;
+  travelDate?: string;
+  seatCount: number;
+  grossFare: number;
+  percentage: number;
+  amount: number;
+}) {
+  const docRef = await addDoc(collection(db, "ownerEarnings"), {
+    ...payload,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
 export async function cancelBooking(bookingId: string) {
   await updateDoc(doc(db, "bookings", bookingId), {
     status: "cancelled",
@@ -296,6 +333,30 @@ export async function fetchBookingsForBus(busId: string) {
     });
   });
   return bookings;
+}
+
+export async function fetchEarningsForOwner(ownerId: string) {
+  const q = query(collection(db, "ownerEarnings"), where("ownerId", "==", ownerId));
+  const snapshot = await getDocs(q);
+  const items: OwnerEarning[] = [];
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data() as any;
+    items.push({
+      id: docSnap.id,
+      ownerId: data.ownerId,
+      busId: data.busId,
+      bookingId: data.bookingId,
+      route: data.route,
+      travelDate: data.travelDate,
+      seatCount: Number(data.seatCount ?? 0),
+      grossFare: Number(data.grossFare ?? 0),
+      percentage: Number(data.percentage ?? 10),
+      amount: Number(data.amount ?? 0),
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+    });
+  });
+  // sort in memory by createdAt desc to avoid composite index during demo
+  return items.sort((a, b) => (b.createdAt?.getTime?.() ?? 0) - (a.createdAt?.getTime?.() ?? 0));
 }
 
 export async function recordFeedback(payload: {
