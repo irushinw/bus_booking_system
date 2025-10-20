@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { LogOut } from "lucide-react";
+import { ChevronDown, LogOut, Settings, User2, LayoutGrid } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { logout } from "@/lib/firebase/auth";
 import type { UserRole } from "@/types/firestore";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const linkClass = "px-3 py-2 text-sm font-medium transition hover:text-primary";
 
@@ -33,23 +34,35 @@ export function MainNav() {
 
   const roleLink = useMemo(() => {
     if (!role) return null;
-    const map: Record<UserRole, { href: string; label: string }> = {
-      passenger: { href: "/dashboard/passenger", label: roleLabel("passenger") },
-      driver: { href: "/dashboard/driver", label: roleLabel("driver") },
-      owner: { href: "/dashboard/owner", label: roleLabel("owner") },
-      admin: { href: "/dashboard/admin", label: roleLabel("admin") },
+    const map: Record<UserRole, string> = {
+      passenger: "/dashboard/passenger",
+      driver: "/dashboard/driver",
+      owner: "/dashboard/owner",
+      admin: "/dashboard/admin",
     };
     return map[role];
   }, [role]);
 
   const navLinks = useMemo(() => {
+    // Reordered for standard UX
     if (user && roleLink) {
-      return [...baseLinks, roleLink];
+      return [
+        baseLinks[0], // Home
+        baseLinks[1], // Routes
+        { href: "/dashboard", label: "Dashboard" },
+        baseLinks[2], // About
+        baseLinks[3], // Help
+        baseLinks[4], // Contact
+      ];
     }
     return [
-      ...baseLinks,
-      { href: "/auth/login", label: "Login" },
-      { href: "/auth/register", label: "Register" },
+      baseLinks[0],
+      baseLinks[1],
+      baseLinks[2],
+      baseLinks[3],
+      baseLinks[4],
+      { href: "/auth/login", label: "Log in" },
+      { href: "/auth/register", label: "Sign up" },
     ];
   }, [baseLinks, roleLink, user]);
 
@@ -86,13 +99,28 @@ export function MainNav() {
               <span className="rounded-full border border-border px-3 py-1 text-xs uppercase text-muted-foreground">
                 {roleLabel(role)}
               </span>
-              <span className="text-sm text-foreground/80">{displayName}</span>
-              <button
-                onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition hover:bg-muted"
-              >
-                <LogOut className="h-4 w-4" /> Sign out
-              </button>
+              <Popover>
+                <PopoverTrigger className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition hover:bg-muted">
+                  <span className="truncate max-w-[160px]">{displayName}</span>
+                  <ChevronDown className="h-4 w-4" />
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-56 p-1">
+                  <div className="flex flex-col">
+                    <Link href="/dashboard" className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-muted">
+                      <LayoutGrid className="h-4 w-4" /> Dashboard
+                    </Link>
+                    <Link href="/account#profile" className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-muted">
+                      <User2 className="h-4 w-4" /> Edit profile
+                    </Link>
+                    <Link href="/account#settings" className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-muted">
+                      <Settings className="h-4 w-4" /> Account settings
+                    </Link>
+                    <button onClick={handleLogout} className="flex items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted">
+                      <LogOut className="h-4 w-4" /> Sign out
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </>
           ) : null}
         </div>
@@ -113,22 +141,35 @@ export function MainNav() {
         >
           <div className="flex flex-col gap-2">
             {user && role ? (
-              <div className="flex items-center justify-between rounded-md border border-border p-3">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase text-muted-foreground">
-                    {roleLabel(role)}
-                  </span>
-                  <span className="text-sm text-foreground/80">{displayName}</span>
+              <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase text-muted-foreground">
+                      {roleLabel(role)}
+                    </span>
+                    <span className="text-sm text-foreground/80">{displayName}</span>
+                  </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setIsOpen(false);
-                    void handleLogout();
-                  }}
-                  className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition hover:bg-muted"
-                >
-                  <LogOut className="h-3 w-3" /> Sign out
-                </button>
+                <div className="grid gap-1">
+                  <Link href="/dashboard" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted" onClick={() => setIsOpen(false)}>
+                    <LayoutGrid className="h-4 w-4" /> Dashboard
+                  </Link>
+                  <Link href="/account#profile" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted" onClick={() => setIsOpen(false)}>
+                    <User2 className="h-4 w-4" /> Edit profile
+                  </Link>
+                  <Link href="/account#settings" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted" onClick={() => setIsOpen(false)}>
+                    <Settings className="h-4 w-4" /> Account settings
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      void handleLogout();
+                    }}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
+                  >
+                    <LogOut className="h-3 w-3" /> Sign out
+                  </button>
+                </div>
               </div>
             ) : null}
             {navLinks.map(({ href, label }) => {
