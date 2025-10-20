@@ -12,12 +12,17 @@ import {
   ShieldCheck,
   Ticket,
   Users,
+  CreditCard,
+  Lock,
+  AlertCircle,
 } from "lucide-react";
 import {
   createBooking,
   fetchBusForRoute,
   fetchRouteById,
   fetchUserProfile,
+  recordOwnerEarning,
+  recordPayment,
 } from "@/lib/firebase/firestore";
 import type { Route, Bus, UserProfile } from "@/types/firestore";
 import { useAuth } from "@/context/AuthContext";
@@ -38,6 +43,67 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvc, setCvc] = useState("");
+  const [touched, setTouched] = useState<{ name?: boolean; number?: boolean; expiry?: boolean; cvc?: boolean }>({});
+
+  // Formatting & validation helpers
+  const formatCardNumber = (value: string) =>
+    value
+      .replace(/\D/g, "")
+      .slice(0, 16)
+      .replace(/(.{4})/g, "$1 ")
+      .trim();
+
+  const luhnCheck = (num: string) => {
+    let sum = 0;
+    let shouldDouble = false;
+    for (let i = num.length - 1; i >= 0; i--) {
+      let digit = parseInt(num.charAt(i), 10);
+      if (shouldDouble) {
+        digit *= 2;
+        if (digit > 9) digit -= 9;
+      }
+      sum += digit;
+      shouldDouble = !shouldDouble;
+    }
+    return sum % 10 === 0;
+  };
+
+  const detectCardBrand = (digits: string): "VISA" | "MASTERCARD" | null => {
+    if (/^4\d{0,15}$/.test(digits)) return "VISA";
+    if (/^(5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720))\d{0,12}$/.test(digits)) return "MASTERCARD";
+    return null;
+  };
+
+  const formatExpiry = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 4);
+    if (digits.length < 3) return digits;
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  };
+
+  const numberDigits = cardNumber.replace(/\D/g, "");
+  const brand = detectCardBrand(numberDigits);
+  const isCardValid = numberDigits.length === 16 && luhnCheck(numberDigits);
+
+  const expDigits = expiry.replace(/\D/g, "").slice(0, 4);
+  const month = parseInt(expDigits.slice(0, 2) || "0", 10);
+  const year = parseInt(expDigits.slice(2) || "0", 10);
+  const isMonthValid = month >= 1 && month <= 12;
+  const isExpiryValid = (() => {
+    if (!isMonthValid || expDigits.length < 4) return false;
+    const fullYear = 2000 + year;
+    const expiryDate = new Date(fullYear, month); // first day of next month
+    return expiryDate > new Date();
+  })();
+
+  const cvcDigits = cvc.replace(/\D/g, "").slice(0, 4);
+  const isCvcValid = cvcDigits.length >= 3;
+  const isNameValid = cardName.trim().length >= 2;
+
+  const isPaymentValid = isNameValid && isCardValid && isExpiryValid && isCvcValid;
 
   useEffect(() => {
     if (!routeId) return;
@@ -88,18 +154,53 @@ export default function BookingPage() {
       setError("Select at least one seat to continue");
       return;
     }
+    // Minimal validation for simulated card payment
+    const sanitizedNumber = cardNumber.replace(/\s+/g, "");
+    const validExpiry = /^(0[1-9]|1[0-2])\/(\d{2})$/.test(expiry) && isExpiryValid;
+    const validCvc = /^\d{3,4}$/.test(cvc);
+    if (!isNameValid || !isCardValid || !validExpiry || !validCvc) {
+      setError("Please enter valid payment details to continue.");
+      return;
+    }
 
     try {
       setError(null);
       setSubmitting(true);
-     
+      // Simulated payment step (card details skipped). We add slight delay and create a payment record.
       await new Promise((resolve) => setTimeout(resolve, 1200));
+
+      // Create booking first to obtain bookingId
       const newBookingId = await createBooking({
         userId: user.uid,
         busId: bus.id,
         seats: selectedSeats,
         date: travelDate,
         fare: totalFare,
+      });
+      // Record payment success (simulation)
+      await recordPayment({
+        bookingId: newBookingId,
+        userId: user.uid,
+        busId: bus.id,
+        routeId: route.id,
+        amount: totalFare,
+        method: "card",
+        status: "succeeded",
+        last4: sanitizedNumber.slice(-4),
+      });
+
+      // Owner earning (10%)
+      const earningAmount = Math.round(totalFare * 0.1);
+      await recordOwnerEarning({
+        ownerId: bus.ownerId,
+        busId: bus.id,
+        bookingId: newBookingId,
+        route: `${route.start} → ${route.end}`,
+        travelDate,
+        seatCount: selectedSeats.length,
+        grossFare: totalFare,
+        percentage: 10,
+        amount: earningAmount,
       });
       setBookingId(newBookingId);
     } catch (err) {
@@ -201,6 +302,79 @@ export default function BookingPage() {
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-300">
               <Ticket className="h-4 w-4" /> Total fare: රු {totalFare.toLocaleString("si-LK")}
+            </div>
+            {/* Simulated payment form - Notion-like card UI */}
+            <div className="rounded-2xl border border-white/10 bg-slate-950/80 p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-white">Payment details</p>
+                <span className="inline-flex items-center gap-1 text-xs text-slate-400"><Lock className="h-3 w-3" /> Secure</span>
+              </div>
+              <div className="mt-3 grid gap-3 text-sm">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-slate-400">Name on card</span>
+                  <input
+                    value={cardName}
+                    onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                    onChange={(e) => setCardName(e.target.value)}
+                    placeholder="Jane Smith"
+                    className={`w-full rounded-lg border bg-slate-900/80 px-3 py-2 text-white placeholder:text-slate-500 ${touched.name && !isNameValid ? "border-red-500/60" : "border-white/10 focus:border-yellow-400"}`}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs text-slate-400">Card number</span>
+                  <div className={`flex items-center gap-2 rounded-lg border bg-slate-900/80 px-3 ${touched.number && !isCardValid ? "border-red-500/60" : "border-white/10 focus-within:border-yellow-400"}`}>
+                    <CreditCard className="h-4 w-4 text-slate-400" />
+                    <input
+                      value={cardNumber}
+                      onBlur={() => setTouched((t) => ({ ...t, number: true }))}
+                      onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                      placeholder="4242 4242 4242 4242"
+                      inputMode="numeric"
+                      className="flex-1 bg-transparent py-2 text-white outline-none placeholder:text-slate-500"
+                    />
+                    {brand && (
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-slate-300">{brand}</span>
+                    )}
+                  </div>
+                  {touched.number && !isCardValid && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-red-300"><AlertCircle className="h-3 w-3" /> Enter a valid 16‑digit card number.</p>
+                  )}
+                </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-slate-400">Expiry</span>
+                    <input
+                      value={expiry}
+                      onBlur={() => setTouched((t) => ({ ...t, expiry: true }))}
+                      onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+                      placeholder="MM/YY"
+                      inputMode="numeric"
+                      className={`w-full rounded-lg border bg-slate-900/80 px-3 py-2 text-white placeholder:text-slate-500 ${touched.expiry && !isExpiryValid ? "border-red-500/60" : "border-white/10 focus:border-yellow-400"}`}
+                    />
+                    {touched.expiry && !isExpiryValid && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-red-300"><AlertCircle className="h-3 w-3" /> Enter a valid future date.</p>
+                    )}
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-slate-400">CVC</span>
+                    <input
+                      value={cvc}
+                      onBlur={() => setTouched((t) => ({ ...t, cvc: true }))}
+                      onChange={(e) => setCvc(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder="CVC"
+                      inputMode="numeric"
+                      className={`w-full rounded-lg border bg-slate-900/80 px-3 py-2 text-white placeholder:text-slate-500 ${touched.cvc && !isCvcValid ? "border-red-500/60" : "border-white/10 focus:border-yellow-400"}`}
+                    />
+                    {touched.cvc && !isCvcValid && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-red-300"><AlertCircle className="h-3 w-3" /> 3–4 digits.</p>
+                    )}
+                  </label>
+                </div>
+                <p className="text-xs text-slate-400">This is a demo payment. No real charges will be made.</p>
+              </div>
             </div>
             {error && <p className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>}
             <button

@@ -40,6 +40,34 @@ export interface Booking {
   createdAt?: Date;
 }
 
+export interface PaymentRecord {
+  id: string;
+  bookingId: string;
+  userId: string;
+  busId: string;
+  routeId?: string;
+  amount: number; // gross amount in LKR
+  currency: "LKR";
+  method: "card" | "wallet" | "cash";
+  status: "succeeded" | "failed";
+  last4?: string;
+  createdAt: Date;
+}
+
+export interface OwnerEarning {
+  id: string;
+  ownerId: string;
+  busId: string;
+  bookingId: string;
+  route?: string;
+  travelDate?: string;
+  seatCount: number;
+  grossFare: number; // full fare paid by passenger
+  percentage: number; // e.g., 10
+  amount: number; // earnings to owner
+  createdAt: Date;
+}
+
 export interface Alert {
   id: string;
   fromDriverId: string;
