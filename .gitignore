@@ -47,3 +47,6 @@ next-env.d.ts
 
 # .gitignore
 scripts/serviceAccountKey.json
+
+# other files
+project details.txt

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Save } from "lucide-react";
+import { CheckCircle2, Loader2, Save, XCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { updateUserProfile } from "@/lib/firebase/firestore";
@@ -16,6 +16,8 @@ export default function AccountPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingSecurity, setSavingSecurity] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageType, setMessageType] = useState<"success" | "error" | "info">("info");
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [displayName, setDisplayName] = useState(profile?.displayName ?? user?.displayName ?? "");
   const [phone, setPhone] = useState(profile?.phone ?? "");
@@ -51,10 +53,14 @@ export default function AccountPage() {
       setSavingProfile(true);
       await updateUserProfile(user.uid, { displayName, phone, photoURL });
       await updateProfile(user, { displayName, photoURL: photoURL || undefined });
+      setMessageType("success");
       setMessage("Profile updated successfully.");
+      setToast({ type: "success", text: "Profile updated" });
     } catch (error) {
       console.error(error);
+      setMessageType("error");
       setMessage("Could not update profile. Please try again.");
+      setToast({ type: "error", text: "Profile update failed" });
     } finally {
       setSavingProfile(false);
     }
@@ -81,10 +87,14 @@ export default function AccountPage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setMessageType("success");
       setMessage("Password changed successfully.");
+      setToast({ type: "success", text: "Password changed" });
     } catch (error) {
       console.error(error);
+      setMessageType("error");
       setMessage("Could not change password. Please check your current password and try again.");
+      setToast({ type: "error", text: "Password change failed" });
     } finally {
       setSavingSecurity(false);
     }
@@ -92,14 +102,27 @@ export default function AccountPage() {
 
   return (
     <ProtectedRoute>
-      <div className="mx-auto max-w-3xl space-y-6">
-        <header className="rounded-2xl border border-white/10 bg-slate-900/60 p-6">
+      <div className="mx-auto max-w-5xl space-y-6">
+        {/* Toast */}
+        {toast && (
+          <div className={`pointer-events-none fixed left-1/2 top-5 z-50 -translate-x-1/2 transform rounded-full px-4 py-2 text-sm shadow-lg ${toast.type === "success" ? "bg-green-500/90 text-white" : "bg-red-500/90 text-white"}`}>
+            <div className="flex items-center gap-2">
+              {toast.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+              <span>{toast.text}</span>
+            </div>
+          </div>
+        )}
+        <header className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
           <h1 className="text-2xl font-semibold text-white">Account</h1>
           <p className="mt-2 text-sm text-slate-300">Manage your profile information and account security settings.</p>
-          {message && <p className="mt-4 rounded-xl bg-yellow-400/20 px-4 py-2 text-xs text-yellow-100">{message}</p>}
+          {message && (
+            <p className={`mt-4 rounded-xl px-4 py-2 text-xs ${messageType === "success" ? "bg-green-500/15 text-green-200" : messageType === "error" ? "bg-red-500/15 text-red-200" : "bg-yellow-400/20 text-yellow-100"}`}>
+              {message}
+            </p>
+          )}
         </header>
 
-        <section ref={profileRef} id="profile" className="rounded-2xl border border-white/10 bg-slate-900/60 p-6">
+        <section ref={profileRef} id="profile" className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
           <h2 className="text-xl font-semibold text-white">Edit profile</h2>
           <div className="mt-4 grid gap-3 text-sm text-white">
             <label className="flex flex-col gap-1">
@@ -120,7 +143,7 @@ export default function AccountPage() {
           </div>
         </section>
 
-        <section ref={settingsRef} id="settings" className="rounded-2xl border border-white/10 bg-slate-900/60 p-6">
+        <section ref={settingsRef} id="settings" className="rounded-2xl border border-white/10 bg-slate-900/70 p-6">
           <h2 className="text-xl font-semibold text-white">Account settings</h2>
           <div className="mt-4 grid gap-3 text-sm text-white">
             <div className="rounded-lg border border-white/10 bg-slate-950/80 p-4">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChevronDown, LogOut, Settings, User2, LayoutGrid } from "lucide-react";
+import { ChevronDown, LogOut, Settings, User2, LayoutGrid, Shield } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { logout } from "@/lib/firebase/auth";
 import type { UserRole } from "@/types/firestore";
@@ -32,20 +32,9 @@ export function MainNav() {
     []
   );
 
-  const roleLink = useMemo(() => {
-    if (!role) return null;
-    const map: Record<UserRole, string> = {
-      passenger: "/dashboard/passenger",
-      driver: "/dashboard/driver",
-      owner: "/dashboard/owner",
-      admin: "/dashboard/admin",
-    };
-    return map[role];
-  }, [role]);
-
   const navLinks = useMemo(() => {
     // Reordered for standard UX
-    if (user && roleLink) {
+    if (user) {
       return [
         baseLinks[0], // Home
         baseLinks[1], // Routes
@@ -64,7 +53,7 @@ export function MainNav() {
       { href: "/auth/login", label: "Log in" },
       { href: "/auth/register", label: "Sign up" },
     ];
-  }, [baseLinks, roleLink, user]);
+  }, [baseLinks, user]);
 
   const displayName = profile?.displayName ?? user?.email ?? "User";
 
@@ -96,13 +85,13 @@ export function MainNav() {
         <div className="hidden items-center gap-3 md:flex">
           {user && role ? (
             <>
-              <span className="rounded-full border border-border px-3 py-1 text-xs uppercase text-muted-foreground">
-                {roleLabel(role)}
-              </span>
               <Popover>
-                <PopoverTrigger className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-foreground transition hover:bg-muted">
-                  <span className="truncate max-w-[160px]">{displayName}</span>
-                  <ChevronDown className="h-4 w-4" />
+                <PopoverTrigger className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-transparent px-3 py-2 text-sm text-slate-200 transition hover:bg-white/5">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+                    <Shield className="h-3 w-3" /> {roleLabel(role)}
+                  </span>
+                  <span className="truncate max-w-[160px] font-medium">{displayName}</span>
+                  <ChevronDown className="h-4 w-4 opacity-70" />
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-56 p-1">
                   <div className="flex flex-col">
