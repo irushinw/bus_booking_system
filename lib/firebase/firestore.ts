@@ -138,6 +138,14 @@ export async function fetchUserProfile(userId: string) {
   } as UserProfile;
 }
 
+export async function updateUserProfile(userId: string, payload: Partial<UserProfile>) {
+  const userRef = doc(db, "users", userId);
+  await updateDoc(userRef, {
+    ...payload,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function createOrUpdateRoute(routeId: string | null, payload: Partial<Route>) {
   if (routeId) {
     const routeRef = doc(db, "routes", routeId);
