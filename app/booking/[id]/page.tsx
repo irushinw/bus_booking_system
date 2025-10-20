@@ -92,7 +92,7 @@ export default function BookingPage() {
     try {
       setError(null);
       setSubmitting(true);
-      // Mock payment delay
+     
       await new Promise((resolve) => setTimeout(resolve, 1200));
       const newBookingId = await createBooking({
         userId: user.uid,
