@@ -84,3 +84,38 @@ export interface Feedback {
   message: string;
   createdAt: Date;
 }
+
+export interface Tour {
+  id: string;
+  routeId: string;
+  busId: string;
+  driverId: string;
+  startDateTime: Date;
+  endDateTime: Date;
+  isWeekly: boolean;
+  status: "scheduled" | "started" | "in-progress" | "completed" | "cancelled";
+  currentStopIndex?: number; // Index of current stop in route.stops array
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface TourProgress {
+  id: string;
+  tourId: string;
+  stopIndex: number;
+  stopName: string;
+  arrivedAt: Date;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface DriverNotification {
+  id: string;
+  driverId: string;
+  tourId: string;
+  type: "tour_starting_soon" | "tour_assigned" | "tour_updated";
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: Date;
+}

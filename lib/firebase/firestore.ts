@@ -17,7 +17,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "./client";
-import type { Alert, Booking, Bus, Route, UserProfile, UserRole, PaymentRecord, OwnerEarning } from "@/types/firestore";
+import type { Alert, Booking, Bus, Route, UserProfile, UserRole, PaymentRecord, OwnerEarning, Tour, TourProgress, DriverNotification } from "@/types/firestore";
 
 export async function fetchRoutes() {
   const snapshot = await getDocs(collection(db, "routes"));
@@ -408,5 +408,177 @@ export async function updateUserRole(userId: string, role: UserRole) {
   await updateDoc(doc(db, "users", userId), {
     role,
     updatedAt: serverTimestamp(),
+  });
+}
+
+// Tour Management Functions
+export async function createTour(payload: {
+  routeId: string;
+  busId: string;
+  driverId: string;
+  startDateTime: Date;
+  endDateTime: Date;
+  isWeekly: boolean;
+}) {
+  const docRef = await addDoc(collection(db, "tours"), {
+    ...payload,
+    status: "scheduled",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+export async function fetchTours() {
+  const snapshot = await getDocs(collection(db, "tours"));
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      routeId: data.routeId,
+      busId: data.busId,
+      driverId: data.driverId,
+      startDateTime: data.startDateTime instanceof Timestamp ? data.startDateTime.toDate() : new Date(data.startDateTime),
+      endDateTime: data.endDateTime instanceof Timestamp ? data.endDateTime.toDate() : new Date(data.endDateTime),
+      isWeekly: data.isWeekly ?? false,
+      status: data.status ?? "scheduled",
+      currentStopIndex: data.currentStopIndex,
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+      updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : undefined,
+    };
+  });
+}
+
+export async function fetchToursByDriver(driverId: string) {
+  const toursQuery = query(collection(db, "tours"), where("driverId", "==", driverId));
+  const snapshot = await getDocs(toursQuery);
+  const tours = snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      routeId: data.routeId,
+      busId: data.busId,
+      driverId: data.driverId,
+      startDateTime: data.startDateTime instanceof Timestamp ? data.startDateTime.toDate() : new Date(data.startDateTime),
+      endDateTime: data.endDateTime instanceof Timestamp ? data.endDateTime.toDate() : new Date(data.endDateTime),
+      isWeekly: data.isWeekly ?? false,
+      status: data.status ?? "scheduled",
+      currentStopIndex: data.currentStopIndex,
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+      updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : undefined,
+    };
+  });
+  
+  // Sort in memory by startDateTime descending
+  return tours.sort((a, b) => b.startDateTime.getTime() - a.startDateTime.getTime());
+}
+
+export async function updateTour(tourId: string, payload: Partial<any>) {
+  await updateDoc(doc(db, "tours", tourId), {
+    ...payload,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteTour(tourId: string) {
+  await deleteDoc(doc(db, "tours", tourId));
+}
+
+export async function startTour(tourId: string) {
+  await updateDoc(doc(db, "tours", tourId), {
+    status: "started",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateTourProgress(tourId: string, stopIndex: number, stopName: string) {
+  // Update tour current stop
+  await updateDoc(doc(db, "tours", tourId), {
+    currentStopIndex: stopIndex,
+    status: "in-progress",
+    updatedAt: serverTimestamp(),
+  });
+
+  // Record progress
+  await addDoc(collection(db, "tourProgress"), {
+    tourId,
+    stopIndex,
+    stopName,
+    arrivedAt: serverTimestamp(),
+  });
+}
+
+export async function completeTour(tourId: string) {
+  await updateDoc(doc(db, "tours", tourId), {
+    status: "completed",
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function fetchTourProgress(tourId: string) {
+  const progressQuery = query(
+    collection(db, "tourProgress"), 
+    where("tourId", "==", tourId)
+  );
+  const snapshot = await getDocs(progressQuery);
+  const progress = snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      tourId: data.tourId,
+      stopIndex: data.stopIndex,
+      stopName: data.stopName,
+      arrivedAt: data.arrivedAt instanceof Timestamp ? data.arrivedAt.toDate() : new Date(),
+      latitude: data.latitude,
+      longitude: data.longitude,
+    };
+  });
+  
+  // Sort in memory by arrivedAt ascending
+  return progress.sort((a, b) => a.arrivedAt.getTime() - b.arrivedAt.getTime());
+}
+
+// Driver Notifications
+export async function createDriverNotification(payload: {
+  driverId: string;
+  tourId: string;
+  type: "tour_starting_soon" | "tour_assigned" | "tour_updated";
+  title: string;
+  message: string;
+}) {
+  await addDoc(collection(db, "driverNotifications"), {
+    ...payload,
+    isRead: false,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function fetchDriverNotifications(driverId: string) {
+  const notificationsQuery = query(
+    collection(db, "driverNotifications"),
+    where("driverId", "==", driverId)
+  );
+  const snapshot = await getDocs(notificationsQuery);
+  const notifications = snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      driverId: data.driverId,
+      tourId: data.tourId,
+      type: data.type,
+      title: data.title,
+      message: data.message,
+      isRead: data.isRead ?? false,
+      createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
+    };
+  });
+  
+  // Sort in memory by createdAt descending
+  return notifications.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+export async function markNotificationAsRead(notificationId: string) {
+  await updateDoc(doc(db, "driverNotifications", notificationId), {
+    isRead: true,
   });
 }
