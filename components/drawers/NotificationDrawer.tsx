@@ -1,202 +1,140 @@
 "use client";
 
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../../store/store';
-import { 
-  closeNotificationDrawer, 
-  markNotificationAsRead, 
-  markAllNotificationsAsRead,
-  removeNotification 
-} from '../../store/slices/uiSlice';
-import { 
-  FaTimes, 
-  FaCheck, 
-  FaTrash, 
-  FaBell, 
-  FaExclamationCircle,
-  FaCheckCircle,
-  FaRoute,
-  FaInfoCircle
-} from 'react-icons/fa';
+import { useEffect, useState } from "react";
+import { Bell, Clock, X } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { fetchDriverNotifications, markNotificationAsRead } from "@/lib/firebase/firestore";
+import type { DriverNotification } from "@/types/firestore";
 
-const NotificationDrawer = () => {
-  const dispatch = useDispatch();
-  const { isNotificationDrawerOpen, notifications, unreadCount } = useSelector(
-    (state: RootState) => state.ui
-  );
+export function NotificationDrawer() {
+  const { user, role } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<DriverNotification[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Debug log to see if the component is working
-  console.log('NotificationDrawer rendered, isOpen:', isNotificationDrawerOpen);
+  useEffect(() => {
+    if (user?.uid && role === "driver") {
+      loadNotifications();
+    }
+  }, [user?.uid, role]);
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'booking':
-        return <FaBell className="w-4 h-4 text-blue-500" />;
-      case 'payment':
-        return <FaCheckCircle className="w-4 h-4 text-green-500" />;
-      case 'route':
-        return <FaRoute className="w-4 h-4 text-orange-500" />;
-      default:
-        return <FaInfoCircle className="w-4 h-4 text-primary" />;
+  const loadNotifications = async () => {
+    if (!user?.uid) return;
+    
+    setLoading(true);
+    try {
+      const notificationData = await fetchDriverNotifications(user.uid);
+      setNotifications(notificationData);
+    } catch (error) {
+      console.error("Failed to load notifications", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleMarkAsRead = (id: number) => {
-    dispatch(markNotificationAsRead(id));
+  const handleNotificationClick = async (notification: DriverNotification) => {
+    if (!notification.isRead) {
+      await markNotificationAsRead(notification.id);
+      setNotifications(prev => 
+        prev.map(n => 
+          n.id === notification.id ? { ...n, isRead: true } : n
+        )
+      );
+    }
   };
 
-  const handleMarkAllAsRead = () => {
-    dispatch(markAllNotificationsAsRead());
-  };
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const handleRemoveNotification = (id: number) => {
-    dispatch(removeNotification(id));
-  };
+  // Only show for drivers
+  if (role !== "driver") return null;
 
   return (
-    <AnimatePresence>
-      {isNotificationDrawerOpen && (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <Bell className="h-5 w-5" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-xs text-destructive-foreground flex items-center justify-center">
+            {unreadCount}
+          </span>
+        )}
+      </button>
+      
+      {isOpen && (
         <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-            onClick={() => dispatch(closeNotificationDrawer())}
+          <div 
+            className="fixed inset-0 z-30" 
+            onClick={() => setIsOpen(false)}
           />
-
-          {/* Drawer */}
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 h-full w-96 bg-card border-l border-border shadow-2xl z-50"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                  <FaBell className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-card-foreground">Notifications</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {unreadCount} unread notifications
-                  </p>
-                </div>
-              </div>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => dispatch(closeNotificationDrawer())}
-                className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center hover:bg-secondary/80 transition-colors"
+          <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border bg-popover p-4 shadow-lg z-40">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="font-semibold">Notifications</h3>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="rounded-full p-1 hover:bg-muted"
               >
-                <FaTimes className="w-4 h-4 text-secondary-foreground" />
-              </motion.button>
+                <X className="h-4 w-4" />
+              </button>
             </div>
-
-            {/* Actions */}
-            {unreadCount > 0 && (
-              <div className="p-4 border-b border-border">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleMarkAllAsRead}
-                  className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-                >
-                  <FaCheck className="w-4 h-4" />
-                  Mark all as read
-                </motion.button>
-              </div>
-            )}
-
-            {/* Notifications List */}
-            <div className="flex-1 overflow-y-auto">
-              {notifications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 text-center p-6">
-                  <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4">
-                    <FaBell className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-card-foreground mb-2">
-                    No notifications
-                  </h3>
-                  <p className="text-muted-foreground">
-                    You're all caught up! Check back later for new updates.
-                  </p>
+            
+            <div className="mt-4 max-h-64 overflow-y-auto">
+              {loading ? (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  Loading notifications...
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  No notifications yet
                 </div>
               ) : (
-                <div className="p-4 space-y-3">
-                  {notifications.map((notification, index) => (
-                    <motion.div
+                <div className="space-y-3">
+                  {notifications.slice(0, 5).map((notification) => (
+                    <div
                       key={notification.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className={`p-4 rounded-xl border transition-all ${
-                        notification.unread 
-                          ? 'bg-primary/5 border-primary/20 shadow-sm' 
-                          : 'bg-secondary/30 border-border hover:bg-secondary/50'
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`cursor-pointer rounded-lg border p-3 transition hover:bg-muted ${
+                        !notification.isRead ? "bg-yellow-400/5 border-yellow-400/20" : ""
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-1">
-                          {getNotificationIcon(notification.type)}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-card-foreground mb-1">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{notification.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
                             {notification.message}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {notification.time}
-                          </p>
+                          <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              {notification.createdAt.toLocaleDateString()} at{" "}
+                              {notification.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          {notification.unread && (
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleMarkAsRead(notification.id)}
-                              className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center hover:bg-primary/30 transition-colors"
-                              title="Mark as read"
-                            >
-                              <FaCheck className="w-3 h-3 text-primary" />
-                            </motion.button>
-                          )}
-                          
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleRemoveNotification(notification.id)}
-                            className="w-6 h-6 bg-destructive/20 rounded-full flex items-center justify-center hover:bg-destructive/30 transition-colors"
-                            title="Remove notification"
-                          >
-                            <FaTrash className="w-3 h-3 text-destructive" />
-                          </motion.button>
-                        </div>
+                        {!notification.isRead && (
+                          <div className="h-2 w-2 rounded-full bg-yellow-400 flex-shrink-0 ml-2" />
+                        )}
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-border">
-              <p className="text-xs text-muted-foreground text-center">
-                Notifications are updated in real-time
-              </p>
-            </div>
-          </motion.div>
+            {notifications.length > 5 && (
+              <div className="border-t pt-2 mt-2">
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="w-full text-center text-sm text-primary hover:underline"
+                >
+                  View all notifications
+                </button>
+              </div>
+            )}
+          </div>
         </>
       )}
-    </AnimatePresence>
+    </div>
   );
-};
-
-export default NotificationDrawer; 
+}

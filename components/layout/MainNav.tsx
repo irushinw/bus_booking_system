@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { logout } from "@/lib/firebase/auth";
 import type { UserRole } from "@/types/firestore";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { NotificationDrawer } from "@/components/drawers/NotificationDrawer";
 
 const linkClass = "px-3 py-2 text-sm font-medium transition hover:text-primary";
 
@@ -25,6 +26,7 @@ export function MainNav() {
     () => [
       { href: "/", label: "Home" },
       { href: "/routes", label: "Routes" },
+      { href: "/track", label: "Track" },
       { href: "/about", label: "About" },
       { href: "/help", label: "Help" },
       { href: "/contact", label: "Contact" },
@@ -35,14 +37,25 @@ export function MainNav() {
   const navLinks = useMemo(() => {
     // Reordered for standard UX
     if (user) {
-      return [
+      const baseNavLinks = [
         baseLinks[0], // Home
         baseLinks[1], // Routes
+        baseLinks[2], // Track
         { href: "/dashboard", label: "Dashboard" },
-        baseLinks[2], // About
-        baseLinks[3], // Help
-        baseLinks[4], // Contact
       ];
+
+      // Add Tours link for admin and driver roles
+      if (role === "admin" || role === "driver") {
+        baseNavLinks.push({ href: "/tours", label: "Tours" });
+      }
+
+      baseNavLinks.push(
+        baseLinks[3], // About
+        baseLinks[4], // Help
+        baseLinks[5], // Contact
+      );
+
+      return baseNavLinks;
     }
     return [
       baseLinks[0],
@@ -50,10 +63,11 @@ export function MainNav() {
       baseLinks[2],
       baseLinks[3],
       baseLinks[4],
+      baseLinks[5],
       { href: "/auth/login", label: "Log in" },
       { href: "/auth/register", label: "Sign up" },
     ];
-  }, [baseLinks, user]);
+  }, [baseLinks, user, role]);
 
   const displayName = profile?.displayName ?? user?.email ?? "User";
 
@@ -85,6 +99,7 @@ export function MainNav() {
         <div className="hidden items-center gap-3 md:flex">
           {user && role ? (
             <>
+              <NotificationDrawer />
               <Popover>
                 <PopoverTrigger className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-transparent px-3 py-2 text-sm text-slate-200 transition hover:bg-white/5">
                   <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
