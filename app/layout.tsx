@@ -6,6 +6,7 @@ import ReduxProvider from "@/lib/redux/ReduxProvider";
 import { AuthProvider } from "@/context/AuthContext";
 import { MainNav } from "@/components/layout/MainNav";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { Suspense } from "react";
 
 // Import notification service to start monitoring
 import "@/lib/services/tourNotificationService";
@@ -80,7 +81,9 @@ export default function RootLayout({
             <AuthProvider>
               <div className="flex min-h-screen flex-col">
                 <MainNav />
+                <Suspense fallback={<div>Loading...</div>}>
                 <main className="flex-1">{children}</main>
+                </Suspense>
                 <SiteFooter />
               </div>
             </AuthProvider>
