@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -26,6 +26,8 @@ import {
 } from "@/lib/firebase/firestore";
 import type { Route, Bus, UserProfile } from "@/types/firestore";
 import { useAuth } from "@/context/AuthContext";
+import { Modal } from "@/components/ui/modal";
+import TicketReceipt from "@/components/booking/TicketReceipt";
 
 export default function BookingPage() {
   const params = useParams<{ id: string }>();
@@ -48,6 +50,7 @@ export default function BookingPage() {
   const [expiry, setExpiry] = useState("");
   const [cvc, setCvc] = useState("");
   const [touched, setTouched] = useState<{ name?: boolean; number?: boolean; expiry?: boolean; cvc?: boolean }>({});
+  const receiptRef = useRef<HTMLDivElement | null>(null);
 
   // Formatting & validation helpers
   const formatCardNumber = (value: string) =>
@@ -130,7 +133,7 @@ export default function BookingPage() {
     void loadDetails();
   }, [routeId]);
 
-  const seatCount = bus?.seats ?? 40;
+  const seatCount = 50; // Fixed to 50 seats for all buses
   const seatNumbers = useMemo(() => Array.from({ length: seatCount }, (_, index) => index + 1), [seatCount]);
   const totalFare = useMemo(() => (route ? route.fare * selectedSeats.length : 0), [route, selectedSeats.length]);
 
@@ -203,6 +206,10 @@ export default function BookingPage() {
         amount: earningAmount,
       });
       setBookingId(newBookingId);
+      // Scroll to receipt section as a non-modal fallback (in case dialog fails)
+      setTimeout(() => {
+        receiptRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
     } catch (err) {
       console.error(err);
       setError("Could not confirm booking. Please try again.");
@@ -250,30 +257,11 @@ export default function BookingPage() {
       </div>
 
       <div className="mx-auto grid max-w-5xl gap-6 px-4 py-10 lg:grid-cols-[2fr,1fr]">
-        <section className="space-y-6 rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-lg">
+  <section className="space-y-6 rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-lg">
           <h2 className="text-lg font-semibold">Choose your seats</h2>
           <p className="text-sm text-slate-300">Tap to select seats. Green seats are available; yellow indicates your selection.</p>
 
-          <div className="grid grid-cols-4 gap-3 sm:grid-cols-5">
-            {seatNumbers.map((seat) => {
-              const isSelected = selectedSeats.includes(seat);
-              return (
-                <button
-                  key={seat}
-                  onClick={() => toggleSeat(seat)}
-                  className={`flex h-12 items-center justify-center rounded-lg border text-sm font-medium transition ${
-                    isSelected
-                      ? "border-yellow-400 bg-yellow-400/80 text-slate-900"
-                      : "border-white/10 bg-slate-900/70 text-white hover:border-yellow-400"
-                  }`}
-                >
-                  {seat}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="grid gap-4 rounded-xl border border-white/10 bg-slate-950/80 p-4 text-sm text-slate-300 sm:grid-cols-3">
+          <div className="mx-auto grid max-w-md gap-4 rounded-xl border border-white/10 bg-slate-950/80 p-3 text-sm text-slate-300 sm:grid-cols-3">
             <div className="flex items-center gap-2">
               <span className="h-4 w-4 rounded-sm border border-white/20 bg-slate-900/80" /> Available
             </div>
@@ -283,6 +271,59 @@ export default function BookingPage() {
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-yellow-300" /> Safe & verified
             </div>
+          </div>
+
+          {/* Seat map: 2+3 layout with individual seat boxes */}
+          <div className="space-y-3">
+            {Array.from({ length: Math.ceil(seatCount / 5) }, (_, row) => {
+              const rowSeats = Array.from({ length: 5 }, (_, i) => row * 5 + i + 1).filter((s) => s <= seatCount);
+              return (
+                <div key={row} className="flex items-center justify-center gap-4">
+                  {/* Left side: 2 seats */}
+                  <div className="flex gap-2">
+                    {rowSeats.slice(0, 2).map((seat) => {
+                      const isSelected = selectedSeats.includes(seat);
+                      return (
+                        <button
+                          key={seat}
+                          onClick={() => toggleSeat(seat)}
+                          className={`flex h-12 w-12 items-center justify-center rounded-lg border text-sm font-medium transition ${
+                            isSelected
+                              ? "border-yellow-400 bg-yellow-400/80 text-slate-900"
+                              : "border-white/10 bg-slate-900/70 text-white hover:border-yellow-400"
+                          }`}
+                        >
+                          {seat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Aisle */}
+                  <div className="h-8 w-8 rounded-sm bg-white/5" aria-hidden />
+                  
+                  {/* Right side: 3 seats */}
+                  <div className="flex gap-2">
+                    {rowSeats.slice(2).map((seat) => {
+                      const isSelected = selectedSeats.includes(seat);
+                      return (
+                        <button
+                          key={seat}
+                          onClick={() => toggleSeat(seat)}
+                          className={`flex h-12 w-12 items-center justify-center rounded-lg border text-sm font-medium transition ${
+                            isSelected
+                              ? "border-yellow-400 bg-yellow-400/80 text-slate-900"
+                              : "border-white/10 bg-slate-900/70 text-white hover:border-yellow-400"
+                          }`}
+                        >
+                          {seat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="space-y-4">
@@ -434,27 +475,25 @@ export default function BookingPage() {
             </div>
           )}
 
+          {/* Non-modal anchor for scroll fallback */}
+          <div ref={receiptRef} />
           {bookingId && (
-            <div className="space-y-4 rounded-2xl border border-yellow-400/40 bg-yellow-400/10 p-6 text-slate-900">
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <CheckCircle2 className="h-5 w-5" /> Booking confirmed
-              </h3>
-              <div className="rounded-xl bg-white/80 p-4 text-sm shadow">
-                <p className="font-semibold">Digital ticket #{bookingId.slice(-6).toUpperCase()}</p>
-                <p className="mt-2">Passenger: {profile?.displayName ?? user?.email}</p>
-                <p>Date: {new Date(travelDate).toLocaleDateString("en-LK")}</p>
-                <p>Seats: {selectedSeats.join(", ")}</p>
-                <p>Total paid: රු {totalFare.toLocaleString("si-LK")}</p>
-                <p className="mt-3 text-xs text-slate-600">
-                  Show this receipt to the conductor. You can manage or cancel this booking from your passenger dashboard.
-                </p>
-              </div>
-              <Link
-                href="/dashboard/passenger"
-                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-yellow-300"
-              >
-                Go to passenger dashboard
-              </Link>
+            <div className="space-y-4">
+              <Modal open={Boolean(bookingId)} onClose={() => setBookingId(null)} title="Your booking ticket">
+                <TicketReceipt
+                  bookingId={bookingId}
+                  passenger={profile?.displayName ?? user?.email}
+                  route={{ start: route.start, end: route.end }}
+                  travelDate={travelDate}
+                  seats={selectedSeats}
+                  totalFare={totalFare}
+                />
+                <div className="mt-4 flex justify-end">
+                  <Link href="/dashboard/passenger" className="rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-900">
+                    Open dashboard
+                  </Link>
+                </div>
+              </Modal>
             </div>
           )}
         </aside>
