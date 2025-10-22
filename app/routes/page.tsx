@@ -61,12 +61,21 @@ export default function RoutesPage() {
     <main className="min-h-screen bg-slate-950 text-white">
       <div className="border-b border-white/10 bg-slate-900/70 py-10">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4">
-          <div>
-            <h1 className="text-3xl font-bold">Sri Lanka bus routes</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300">
-              Browse intercity and provincial services. Use filters to discover buses by origin (පිටත් වීම), destination
-              (ගමනාගමනය), or by the assigned route number.
-            </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Sri Lanka bus routes</h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                Browse intercity and provincial services. Use filters to discover buses by origin (පිටත් වීම), destination
+                (ගමනාගමනය), or by the assigned route number.
+              </p>
+            </div>
+            <Link
+              href="/track"
+              className="inline-flex items-center gap-2 rounded-full bg-green-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-400"
+            >
+              <MapPin className="h-4 w-4" />
+              Live Tracking
+            </Link>
           </div>
 
           <div className="grid gap-4 rounded-2xl border border-white/10 bg-slate-950/80 p-6 shadow-lg lg:grid-cols-[2fr,1fr,1fr,auto]">
