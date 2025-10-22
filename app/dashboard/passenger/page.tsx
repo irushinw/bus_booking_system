@@ -7,6 +7,8 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
 import { cancelBooking, fetchBookingsForUser, fetchRouteById, fetchBusById } from "@/lib/firebase/firestore";
 import type { Booking, Route, Bus } from "@/types/firestore";
+import { Modal } from "@/components/ui/modal";
+import TicketReceipt from "@/components/booking/TicketReceipt";
 
 interface BookingWithDetails extends Booking {
   route?: Route | null;
@@ -18,6 +20,7 @@ export default function PassengerDashboardPage() {
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [viewTicketFor, setViewTicketFor] = useState<BookingWithDetails | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -104,12 +107,12 @@ export default function PassengerDashboardPage() {
                     <p className="text-xs text-slate-400">Booking ID: {booking.id}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
-                    <Link
-                      href={`/booking/${booking.route?.id ?? booking.bus?.routeId ?? booking.busId}`}
+                    <button
+                      onClick={() => setViewTicketFor(booking)}
                       className="inline-flex items-center gap-2 rounded-full border border-yellow-400 px-4 py-2 text-yellow-300"
                     >
                       <Download className="h-4 w-4" /> View ticket
-                    </Link>
+                    </button>
                     <button
                       onClick={() => handleCancel(booking.id)}
                       disabled={cancellingId === booking.id}
@@ -150,6 +153,23 @@ export default function PassengerDashboardPage() {
           )}
         </section>
       </div>
+      {/* Ticket modal */}
+      <Modal
+        open={Boolean(viewTicketFor)}
+        onClose={() => setViewTicketFor(null)}
+        title="Ticket details"
+      >
+        {viewTicketFor && (
+          <TicketReceipt
+            bookingId={viewTicketFor.id}
+            passenger={undefined}
+            route={viewTicketFor.route ? { start: viewTicketFor.route.start, end: viewTicketFor.route.end } : null}
+            travelDate={viewTicketFor.date}
+            seats={viewTicketFor.seats}
+            totalFare={viewTicketFor.fare}
+          />
+        )}
+      </Modal>
     </ProtectedRoute>
   );
 }
